@@ -267,4 +267,39 @@ $('pasteImage').addEventListener('paste',async e=>{let items=[...(e.clipboardDat
 </script><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script>
 /* Teacher Khen Learning Hub membership verification */
 (()=>{const auth=$('premiumAuth'),msg=$('premiumAuthMessage'),email=$('premiumEmail'),password=$('premiumPassword');const client=window.supabase?.createClient('https://onigbrcsfcbuporhylxv.supabase.co','sb_publishable_MMXsHQKzKYn0mAA3MQOlWA_pEdCS-r3');let revision=0;function lock(message=''){document.body.classList.remove('premium-authorized');document.body.classList.add('premium-locked');auth.hidden=false;if(message)msg.textContent=message}function unlock(){document.body.classList.remove('premium-locked');document.body.classList.add('premium-authorized');auth.hidden=true;msg.textContent=''}async function verify(user){const current=++revision;if(!user){lock();return}if(!client){lock('Login service unavailable.');return}const {data,error}=await client.from('learning_hub_memberships').select('user_id, plan, status, expires_at').eq('user_id',user.id).maybeSingle();if(current!==revision)return;const allowed=data&&['monthly','yearly','premium'].includes(String(data.plan).toLowerCase())&&String(data.status).toLowerCase()==='active'&&(!data.expires_at||new Date(data.expires_at).getTime()>Date.now());if(error||!allowed){lock(error?'Unable to verify membership.':'An active membership is required.');return}unlock()}$('premiumLoginForm').addEventListener('submit',async e=>{e.preventDefault();if(!client)return lock('Login service unavailable.');msg.textContent='Checking account…';const {data,error}=await client.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(error){lock(error.message);return}password.value='';await verify(data.user)});$('premiumReset').onclick=async()=>{if(!email.value.trim()){msg.textContent='Enter your email first.';return}const {error}=await client.auth.resetPasswordForEmail(email.value.trim());msg.textContent=error?error.message:'Check your email for the reset link.'};$('premiumLogout').onclick=async()=>{revision++;roundToken++;$('musicAudio').pause();lock();if(client)await client.auth.signOut()};if(client){client.auth.onAuthStateChange((_event,session)=>setTimeout(()=>verify(session?.user),0));client.auth.getSession().then(({data})=>verify(data.session?.user))}else lock('Login service could not load.')})();
-</script></body></html>
+</script>
+<script>
+/* TeacherKhen Community receiver — Spot It! Premium. Original gameplay unchanged. */
+(()=>{
+  const trusted=new Set(['https://teacherkhen.com','https://www.teacherkhen.com','https://teacherkhen.github.io']);
+  const communityMode=location.hash==='#tk-community';
+  if(!communityMode || !window.opener)return;
+  let loaded=false;
+  function ready(){
+    if(loaded || !document.body.classList.contains('premium-authorized'))return;
+    for(const origin of trusted)try{window.opener.postMessage({type:'TK_SPOTIT_READY'},origin)}catch(_){}
+  }
+  window.addEventListener('message',event=>{
+    if(loaded || event.source!==window.opener || !trusted.has(event.origin))return;
+    if(event.data?.type!=='TK_SPOTIT_LESSON')return;
+    if(!document.body.classList.contains('premium-authorized'))return;
+    try{
+      const lesson=validate(event.data.lesson);
+      if(!lesson.objects.length)throw new Error('No clues in lesson');
+      data=lesson;
+      storageSave();renderList();
+      loaded=true;
+      window.opener.postMessage({type:'TK_SPOTIT_LOADED'},event.origin);
+      // Start the existing game with imported content; keeps all controls and settings.
+      $('settingsDialog').close();
+      begin();
+    }catch(error){
+      window.opener.postMessage({type:'TK_SPOTIT_ERROR',message:String(error.message||error)},event.origin);
+    }
+  });
+  const ticker=setInterval(()=>{if(loaded){clearInterval(ticker);return}ready()},500);
+  setTimeout(()=>clearInterval(ticker),300000);
+  ready();
+})();
+</script>
+</body></html>
